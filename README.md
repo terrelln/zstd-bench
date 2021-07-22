@@ -22,7 +22,7 @@ cargo build
 # Results are also archived to archive.json (TODO: Improve this system)
 ./target/debug/bench --print
 
-# Re-print the results in markdown format with only the benchmark names
+# Re-print the results in markdown format with only the specified keys.
 # See src/print.rs for the available keys.
 # Results are printed by the sort order of the keys.
 ./target/debug/bench --no-benchmark --print --print-format markdown \
