@@ -1,0 +1,15 @@
+min_secs = 1
+min_runs = 1
+
+[datasets]
+	[datasets.silesia]
+		files = ["/home/nick/datasets/silesia/*"]
+
+	[datasets.enwik7]
+		files = ["/home/nick/datasets/enwik7"]
+
+[benchmarks]
+	[benchmarks.compress]
+		[benchmarks.compress.level_1]
+			ZSTD_c_compressionLevel = 1
+			datasets = ["silesia", "enwik7"]

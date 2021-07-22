@@ -1,0 +1,94 @@
+# Optional
+# This gets prefixed to every benchmark command
+# This example runs the benchmark on a protected CPU
+command_prefix = ["sudo", "cset", "shield", "--exec", "--"]
+# If you don't have cset available you could use one of:
+# command_prefix = ["sudo", "cset", "shield", "--exec", "--"]
+# command_prefix = ["taskset", "--cpu-list", "0"]
+
+
+# The upstream zstd repo you want to benchmark
+# This can either be a local or remote repository
+repo = "/home/nick/repos/zstd"
+
+# The commits you want to benchmark.
+# These can be branches or tags or commits.
+# TODO: This is referred to as the revision. I should
+#       rename this to revision.
+commits = [
+	"huf-asm",
+	"huf-cspeed-2",
+	"dev",
+]
+
+# These values are optional and configure how long to benchmark for
+# These are the default values
+
+# Minimum total seconds to benchmark for
+min_secs = 10
+# Minimum number of runs
+min_runs = 3
+# Each run should be at least this long
+min_ms_per_run = 100
+# Minimum number of iterations each run
+min_iters_per_run = 1
+
+# These are the datasets we want to benchmark with
+[datasets]
+	# silesia_cat: Concatenated files of silesia
+	[datasets.silesia_cat]
+		# Globs - relative or absolute paths
+		files = ["/home/nick/datasets/silesia/*"]
+		# Mode: "cat", "separate", or "cut". "separate" is default.
+		mode = "cat"
+
+	# silesia: Benchmark on each file of silesia individually
+	[datasets.silesia]
+		files = ["/home/nick/datasets/silesia/*"]
+
+	# Cut each file of silesia into 1K chunks and benchmark on each chunk
+	[datasets.silesia_1k]
+		files = ["/home/nick/datasets/silesia/*"]
+		# Cut mode
+		mode = { "cut" = 1024 }
+
+	[datasets.silesia_4k]
+		files = ["/home/nick/datasets/silesia/*"]
+		mode = { "cut" = 4096 }
+
+	[datasets.silesia_16k]
+		files = ["/home/nick/datasets/silesia/*"]
+		mode = { "cut" = 16384 }
+
+	[datasets.enwik7]
+		files = ["/home/nick/datasets/enwik7"]
+
+[benchmarks]
+	# Run the benchmark "compress_literals"
+	[benchmarks.compress_literals]
+		# Benchmarks can take parameters.
+		# This benchmark takes the compression level.
+		ZSTD_c_compressionLevel = 7
+
+		# Optional: Run the benchmark on these datasets.
+		# Default: Run on all datasets
+		datasets = ["silesia", "silesia_4k"]
+
+	# Run the benchmark "decompress_literals"
+	[benchmarks.decompress_literals]
+		ZSTD_c_compressionLevel = 7
+		datasets = ["silesia", "silesia_4k"]
+
+	# Run the benchmark "compress" with two different configs
+	# The previous benchmarks didn't have different configs so
+	# it was omitted.
+	[benchmarks.compress]
+		# Run the benchmark "compress" with the config "level_1"
+		[benchmarks.compress.level_1]
+			ZSTD_c_compressionLevel = 1
+			datasets = ["enwik7"]
+
+		# Run the benchmark "compress" with the config "level_3"
+ 		[benchmarks.compress.level_3]
+ 			ZSTD_c_compressionLevel = 3
+ 			datasets = ["enwik7"]
