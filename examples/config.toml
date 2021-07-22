@@ -16,8 +16,7 @@ repo = "/home/nick/repos/zstd"
 # TODO: This is referred to as the revision. I should
 #       rename this to revision.
 commits = [
-	"huf-asm",
-	"huf-cspeed-2",
+	"v1.5.0",
 	"dev",
 ]
 

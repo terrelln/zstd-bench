@@ -4,10 +4,13 @@ To get started:
 
 ```
 cd /path/to/zstd-bench
-# Use the example config
 
+# Use the example config
 cp examples/config.toml .
-# Modify the datasets section to point to real datasets
+# Edit the config:
+#   * Set the right commits (if you want)
+#   * Set the repo to point at your zstd repo
+#   * Set the dataset files to point to the right locations
 
 # Build the benchmark
 cargo build
