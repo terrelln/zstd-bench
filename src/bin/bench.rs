@@ -1,4 +1,3 @@
-#![feature(is_symlink)]
 extern crate clap;
 extern crate serde_json;
 use clap::{App, Arg};
@@ -142,6 +141,11 @@ fn get_commit<P: AsRef<Path>>(bin: P) -> String {
 	String::from_utf8(output.stdout).unwrap()
 }
 
+fn is_symlink(path: &Path) -> bool {
+	// Workaround until is_symlink is stabilized
+	fs::read_link(path).is_ok()
+}
+
 fn copy_binary<P: AsRef<Path>>(bin: P, base_dir: &Path, revision: &str) {
 	let bin = bin.as_ref();
 	let commit = get_commit(bin);
@@ -149,7 +153,7 @@ fn copy_binary<P: AsRef<Path>>(bin: P, base_dir: &Path, revision: &str) {
 	fs::create_dir_all(&commit_dir).unwrap();
 	fs::copy(bin, commit_dir.join(bin.file_name().unwrap())).unwrap();
 	let link_dir = base_dir.join(revision);
-	if link_dir.is_symlink() {
+	if is_symlink(&link_dir) {
 		fs::remove_file(&link_dir).unwrap();
 	}
 	if commit != revision {
