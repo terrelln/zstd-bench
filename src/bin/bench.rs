@@ -7,7 +7,7 @@ use std::process::Command;
 use zstd_bench::benchmark::{run_benchmark, BenchmarkResult, DataSet};
 use zstd_bench::benchmarks::get_all_benchmarks;
 use zstd_bench::config::Config;
-use zstd_bench::print::Format;
+use zstd_bench::print::{Format, Comparison};
 use std::os::unix::fs as unix_fs;
 
 fn benchmark_command(config: &Config, bin: &Path) -> Command {
@@ -37,6 +37,7 @@ struct BenchArgs {
 	print: bool,
 	print_format: Format,
 	print_keys: Vec<String>,
+	print_diff: Option<Comparison>,
 }
 
 fn parse_args() -> Option<BenchArgs> {
@@ -101,6 +102,12 @@ fn parse_args() -> Option<BenchArgs> {
 			.help("Print the given keys in order (sort by order) (see print.rs)")
 			.takes_value(true)
 			.default_value("benchmark,config,dataset,cc,revision,commit,speed_mbps,ratio"))
+		.arg(Arg::with_name("print_diff")
+			.short("d")
+			.long("print-diff")
+			.value_name("KEY:VALUE")
+			.help("Print the comparison diff between values of KEY against the baseline VALUE. E.g. 'revision:dev'")
+			.takes_value(true))
 		.arg(Arg::with_name("print_commit")
 			.long("print-commit")
 			.hidden(true))
@@ -118,6 +125,11 @@ fn parse_args() -> Option<BenchArgs> {
 	let print = matches.is_present("print");
 	let print_format = matches.value_of("print_format").unwrap().into();
 	let print_keys = matches.value_of("print_keys").unwrap().split(',').map(|s| s.to_string()).collect();
+	let print_diff = matches.value_of("print_diff").map(|print_diff| {
+		let cmp: Vec<_> = print_diff.split(':').collect();
+		let cmp = Comparison { key: cmp[0].to_string(), baseline: cmp[1].to_string() };
+		cmp
+	});
 	let args = BenchArgs {
 		config,
 		cargo_dir,
@@ -128,6 +140,7 @@ fn parse_args() -> Option<BenchArgs> {
 		print,
 		print_format,
 		print_keys,
+		print_diff,
 	};
 	Some(args)
 }
@@ -207,7 +220,7 @@ fn main_process() {
 		}
 	}
 	if args.print {
-		args.print_format.print_results(&args.output_file, &args.print_keys);
+		args.print_format.print_results(&args.output_file, &args.print_keys, args.print_diff.as_ref());
 	}
 }
 

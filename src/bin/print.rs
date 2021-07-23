@@ -1,4 +1,4 @@
-use zstd_bench::print::Format;
+use zstd_bench::print::{Format, Comparison};
 
 fn main() {
 	let keys = [
@@ -11,5 +11,6 @@ fn main() {
 		"speed_mbps",
 		"ratio",
 	];
-	Format::Pretty.print_results("results.json", &keys);
+	let cmp = Comparison { key: "revision".to_string(), baseline: "dev".to_string() };
+	Format::Pretty.print_results("results.json", &keys, Some(&cmp));
 }

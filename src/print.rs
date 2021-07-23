@@ -1,9 +1,36 @@
+extern crate itertools;
 extern crate serde_json;
 use crate::benchmark::BenchmarkResult;
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
+
+pub struct Comparison {
+	pub key: String,
+	pub baseline: String,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum Pad {
+	Left,
+	Right,
+	Middle,
+}
+
+impl Pad {
+	fn padding(&self, padding: usize) -> (usize, usize) {
+		match self {
+			Pad::Left => (padding, 0),
+			Pad::Right => (0, padding),
+			Pad::Middle => {
+				let left_padding = padding / 2;
+				(left_padding, padding - left_padding)
+			}
+		}
+	}
+}
 
 pub enum Format {
 	Markdown,
@@ -102,64 +129,135 @@ impl Format {
 		}
 	}
 
-	fn add_value(
-		&self,
-		last: bool,
-		left_pad: bool,
-		max_len: usize,
-		value: &str,
-		line: &mut String,
-	) {
+	fn add_value(&self, last: bool, pad: Pad, max_len: usize, value: &str, line: &mut String) {
 		assert_eq!(value.len() <= max_len, true);
 		let padding = max_len - value.len();
-		if left_pad {
-			self.add_padding(padding, line);
-		}
+		let (left_padding, right_padding) = pad.padding(padding);
+		self.add_padding(left_padding, line);
 		line.push_str(value);
-		if !left_pad {
-			self.add_padding(padding, line);
-		}
+		self.add_padding(right_padding, line);
 		if !last {
 			self.add_separater(line);
 		}
 	}
 
-	pub fn print_rows<S: AsRef<str>>(&self, rows: &[Row], keys: &[S]) {
+	fn header_lines(&self) -> usize {
+		let sub_header_lines = if self.has_sub_header() { 1 } else { 0 };
+		1 + sub_header_lines
+	}
+
+	fn add_values(
+		&self,
+		last: bool,
+		title: &str,
+		pad: Pad,
+		values: &[String],
+		lines: &mut [String],
+	) {
+		let max_len = values.iter().map(|s| s.len()).max().unwrap_or(0);
+		let max_len = std::cmp::max(title.len(), max_len);
+		let header_offset = self.header_lines();
+		self.add_value(last, Pad::Middle, max_len, &title, &mut lines[0]);
+		if self.has_sub_header() {
+			self.add_sub_header_value(last, max_len, &mut lines[1]);
+		}
+		for (line, value) in values.iter().enumerate() {
+			self.add_value(
+				last,
+				pad,
+				max_len,
+				&value,
+				&mut lines[header_offset + line],
+			);
+		}
+	}
+
+	fn add_rows(&self, last: bool, rows: &[Row], key: &str, lines: &mut [String]) {
+		let value0 = rows[0].get(key);
+		let is_comparison = value0.is_comparison();
+		let title = rows[0].title(key);
+		let pad = value0.pad();
+		if !is_comparison {
+			let values: Vec<_> = rows.iter().map(|r| r.get(key).display()).collect();
+			self.add_values(last, &title, pad, &values, lines);
+		} else if is_comparison && is_null_comparison(rows, key) {
+			println!("null cmp {}", key);
+			let values: Vec<_> = rows
+				.iter()
+				.map(|r| r.get(key).unwrap_comparison()[0].1.display())
+				.collect();
+			self.add_values(last, &title, pad, &values, lines);
+		} else {
+			let cmp0 = value0.unwrap_comparison();
+			for (i, (c, _)) in cmp0.iter().enumerate() {
+				let has_diff =
+					i != 0 && rows[0].is_result(key) && cmp0[0].1.is_numeric();
+				let last = last && i == cmp0.len() - 1;
+				{
+					let title = format!("{} ({})", title, c);
+					let values: Vec<_> = rows
+						.iter()
+						.map(|r| r.get(key).unwrap_comparison())
+						.map(|c| c[i].1.display())
+						.collect();
+					self.add_values(
+						last && !has_diff,
+						&title,
+						pad,
+						&values,
+						lines,
+					);
+				}
+				if has_diff {
+					let baseline = &cmp0[0].0;
+					let title = format!("{} ({} - {})", title, c, baseline);
+					let values: Vec<_> = rows
+						.iter()
+						.map(|r| r.get(key).unwrap_comparison())
+						.map(|c| diff(&c[0].1, &c[1].1))
+						.map(|d| format!("{:.1}%", d * 100.0))
+						.collect();
+					self.add_values(last, &title, pad, &values, lines);
+				}
+			}
+		}
+	}
+
+	pub fn print_rows<S: AsRef<str>>(
+		&self,
+		rows: Vec<Row>,
+		keys: &[S],
+		cmp: Option<&Comparison>,
+	) {
 		if rows.is_empty() {
 			return;
 		}
+		let rows = if let Some(cmp) = cmp {
+			compare_rows(rows, &keys, cmp)
+		} else {
+			sort_rows(rows, &keys)
+		};
 		let mut lines = Vec::new();
-		let header_offset = if self.has_sub_header() { 2 } else { 1 };
+		let header_offset = self.header_lines();
+		let sub_header_line = header_offset - 1;
 		let nlines = rows.len() + header_offset;
 		lines.resize(nlines, String::new());
 		for i in 0..nlines {
-			let sub_header = i == 1 && self.has_sub_header();
+			let sub_header = i == sub_header_line && self.has_sub_header();
 			self.add_line_start(sub_header, &mut lines[i]);
 		}
 		for (i, key) in keys.iter().enumerate() {
+			let key = key.as_ref();
 			let last = i == keys.len() - 1;
-			let title = rows[0].title(key.as_ref());
-			let left_pad = rows[0].values.get(key.as_ref()).unwrap().left_pad();
-			let values: Vec<_> = rows.iter().map(|r| r.display(key.as_ref())).collect();
-			let max_len = values.iter().map(|s| s.len()).max().unwrap_or(0);
-			let max_len = std::cmp::max(title.len(), max_len);
-
-			self.add_value(last, left_pad, max_len, &title, &mut lines[0]);
-			if self.has_sub_header() {
-				self.add_sub_header_value(last, max_len, &mut lines[1]);
+			if let Some(cmp) = cmp {
+				if key == cmp.key {
+					continue;
+				}
 			}
-			for (line, value) in values.iter().enumerate() {
-				self.add_value(
-					last,
-					left_pad,
-					max_len,
-					&value,
-					&mut lines[header_offset + line],
-				);
-			}
+			self.add_rows(last, &rows, key, &mut lines);
 		}
 		for i in 0..nlines {
-			let sub_header = i == 1 && self.has_sub_header();
+			let sub_header = i == sub_header_line && self.has_sub_header();
 			self.add_line_end(sub_header, &mut lines[i]);
 		}
 
@@ -168,29 +266,82 @@ impl Format {
 		}
 	}
 
-	pub fn print_results<P: AsRef<Path>, S: AsRef<str>>(&self, results: P, keys: &[S]) {
-		let results = serde_json::from_slice::<Vec<BenchmarkResult>>(&fs::read(results).unwrap()).unwrap();
-		let rows: Vec<Row> = results.into_iter().map(|r| r.into()).collect();
-		let rows = sort_rows(rows, &keys);
-		self.print_rows(&rows, &keys);
+	pub fn print_results<P: AsRef<Path>, S: AsRef<str>>(
+		&self,
+		results: P,
+		keys: &[S],
+		cmp: Option<&Comparison>,
+	) {
+		let results =
+			serde_json::from_slice::<Vec<BenchmarkResult>>(&fs::read(results).unwrap())
+				.unwrap();
+		let rows = results.into_iter().map(|r| r.into()).collect();
+		self.print_rows(rows, &keys, cmp);
 	}
 }
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Clone)]
 enum Value {
 	String(String),
 	Integer(u64),
 	Float(f64),
+	Comparison(Vec<(String, Value)>),
 	None,
 }
 
 impl Value {
-	fn left_pad(&self) -> bool {
+	fn pad(&self) -> Pad {
 		match &self {
-			Value::Integer(_) | Value::Float(_) => true,
-			_ => false,
+			Value::Integer(_) | Value::Float(_) => Pad::Left,
+			_ => Pad::Right,
 		}
 	}
+
+	fn is_comparison(&self) -> bool {
+		matches!(&self, &Value::Comparison(_))
+	}
+
+	fn is_numeric(&self) -> bool {
+		matches!(&self, &Value::Integer(_) | &Value::Float(_))
+	}
+
+	fn unwrap_comparison(&self) -> &Vec<(String, Value)> {
+		if let Value::Comparison(c) = self {
+			return c;
+		}
+		panic!("Not comparison");
+	}
+
+	fn unwrap_str(&self) -> &str {
+		if let Value::String(s) = self {
+			return s;
+		}
+		panic!("Not string");
+	}
+
+	fn display(&self) -> String {
+		match &self {
+			&Value::String(s) => s.clone(),
+			&Value::Integer(i) => i.to_string(),
+			&Value::Float(f) => format!("{:.2}", f),
+			&Value::None => "N/A".to_string(),
+			&Value::Comparison(_) => panic!("Can't display comparison"),
+		}
+	}
+}
+
+fn diff(x: &Value, y: &Value) -> f64 {
+	if let Value::Integer(x) = x {
+		if let Value::Integer(y) = y {
+			return (*y as f64 - *x as f64) / (*x as f64);
+		}
+	}
+	if let Value::Float(x) = x {
+		if let Value::Float(y) = y {
+			return (y - x) / x;
+		}
+	}
+	panic!("Can't diff non-numeric values or values of differing types");
 }
 
 impl From<String> for Value {
@@ -220,8 +371,9 @@ impl<T: Into<Value>> From<Option<T>> for Value {
 	}
 }
 
+#[derive(Clone)]
 pub struct Row {
-	values: HashMap<&'static str, Value>,
+	values: HashMap<String, Value>,
 	titles: HashMap<&'static str, &'static str>,
 }
 
@@ -246,17 +398,30 @@ impl Row {
 		title
 	}
 
-	fn display(&self, key: &str) -> String {
-		match &self.values.get(key).unwrap() {
-			&Value::String(s) => s.clone(),
-			&Value::Integer(i) => i.to_string(),
-			&Value::Float(f) => format!("{:.2}", f),
-			&Value::None => "N/A".to_string(),
+	fn get(&self, key: &str) -> &Value {
+		self.values.get(key).unwrap()
+	}
+
+	fn is_result(&self, key: &str) -> bool {
+		if key == "ratio" {
+			true
+		} else if key.ends_with("bytes") {
+			true
+		} else if key.starts_with("duration_ns") {
+			true
+		} else if key.starts_with("speed_mbps") {
+			true
+		} else {
+			false
 		}
+	}
+
+	pub fn keys(&self) -> impl Iterator<Item = &String> {
+		self.values.keys()
 	}
 }
 
-pub fn sort_rows<S: AsRef<str>>(mut rows: Vec<Row>, order: &[S]) -> Vec<Row> {
+fn sort_rows<S: AsRef<str>>(mut rows: Vec<Row>, order: &[S]) -> Vec<Row> {
 	rows.sort_by(|lhs, rhs| {
 		for key in order {
 			let x = lhs.values.get(key.as_ref()).unwrap();
@@ -271,6 +436,54 @@ pub fn sort_rows<S: AsRef<str>>(mut rows: Vec<Row>, order: &[S]) -> Vec<Row> {
 		Ordering::Equal
 	});
 	rows
+}
+
+fn compare_rows<S: AsRef<str>>(rows: Vec<Row>, keys: &[S], cmp: &Comparison) -> Vec<Row> {
+	assert_eq!(keys.iter().any(|k| k.as_ref() == cmp.key), true);
+	let prefix: Vec<_> = keys
+		.iter()
+		.map(|k| k.as_ref())
+		.take_while(|k| k.as_ref() != cmp.key)
+		.collect();
+	let suffix: Vec<_> = keys
+		.iter()
+		.map(|k| k.as_ref())
+		.skip(prefix.len() + 1)
+		.collect();
+
+	let rows = sort_rows(rows, &keys);
+	let mut out = Vec::new();
+	for (_, cmp_iter) in &rows
+		.iter()
+		.group_by(|row| prefix.iter().map(|k| row.get(k)).collect::<Vec<_>>())
+	{
+		let cmp_rows: Vec<_> = cmp_iter.collect();
+		assert_ne!(cmp_rows.len(), 0);
+		let mut out_row = cmp_rows[0].clone();
+		for key in &suffix {
+			let mut cmp_value = Vec::new();
+			for r in &cmp_rows {
+				let c = r.get(&cmp.key).unwrap_str();
+				let v = r.get(key);
+				cmp_value.push((c.to_string(), v.clone()));
+			}
+			let old = out_row
+				.values
+				.insert(key.to_string(), Value::Comparison(cmp_value));
+			assert_eq!(old.is_some(), true);
+		}
+		out.push(out_row);
+	}
+	out
+}
+
+fn is_null_comparison(rows: &[Row], key: &str) -> bool {
+	rows.iter()
+		.map(|r| r.get(key).unwrap_comparison())
+		.all(|c| {
+			let v0 = &c[0].1;
+			c[1..].iter().all(|v| &v.1 == v0)
+		})
 }
 
 impl From<BenchmarkResult> for Row {
@@ -301,18 +514,35 @@ impl From<BenchmarkResult> for Row {
 		values.insert("duration_ns_median", result.duration_ns.median.into());
 		values.insert("duration_ns_stddev", result.duration_ns.std_dev.into());
 
-		let speed_mbps = 1000. * (result.uncompressed_bytes as f64)
-			/ (result.duration_ns.mean as f64);
-		let ratio = (result.uncompressed_bytes as f64) / (result.compressed_bytes as f64);
+		let uncompressed_bytes = result.uncompressed_bytes;
+		let speed_mbps = |duration| 1000. * (uncompressed_bytes as f64) / (duration as f64);
+
+		let ratio = (uncompressed_bytes as f64) / (result.compressed_bytes as f64);
 
 		values.insert("ratio", ratio.into());
-		values.insert("speed_mbps", speed_mbps.into());
+		values.insert("speed_mbps", speed_mbps(result.duration_ns.mean).into());
+		values.insert("speed_mbps_min", speed_mbps(result.duration_ns.max).into());
+		values.insert("speed_mbps_max", speed_mbps(result.duration_ns.min).into());
+		values.insert(
+			"speed_mbps_median",
+			speed_mbps(result.duration_ns.median).into(),
+		);
+		// TODO: This is probably wrong...
+		values.insert(
+			"speed_mbps_stddev",
+			speed_mbps(result.duration_ns.std_dev).into(),
+		);
 
 		let mut titles = HashMap::new();
 		titles.insert("speed_mbps", "Speed MB/s");
 		titles.insert("cc", "Compiler");
 		titles.insert("cc_version", "Compiler Version");
 		titles.insert("cflags", "Compiler Flags");
+
+		let values = values
+			.into_iter()
+			.map(|(k, v)| (k.to_string(), v))
+			.collect();
 
 		Row { values, titles }
 	}

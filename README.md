@@ -28,6 +28,19 @@ cargo build
 ./target/debug/bench --no-benchmark --print --print-format markdown \
 	--print-keys benchmark,config,revision,speed_mbps,ratio
 
+# Re-print the results as a diff view
+# The diff key is passed as --print-diff KEY:BASELINE.
+# Rows are grouped by all the keys left of the diff key.
+# The diff key must be present in the print keys.
+# Then, all values right of the diff key are printed once for each value of the
+# diff key. If the value is a result a % diff from the baseline is also printed.
+# If the value is the same regardless of the diff key, the diff is omitted.
+# TODO: This only works when there is one result per diff, meaning the keys
+#       left of the diff key and the diff key must fully qualify the result.
+#       This behavior should be cleaned up.
+./target/debug/bench --no-benchmark --print --print-diff revision:dev \
+	--print-keys benchmark,config,dataset,revision,ratio,speed_mbps
+
 # Don't benchmark, instead copy the binaries for each commit into bin/
 ./target/debug/bench --no-benchmark --bin bin/
 
