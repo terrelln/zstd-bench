@@ -214,7 +214,7 @@ impl Format {
 					let values: Vec<_> = rows
 						.iter()
 						.map(|r| r.get(key).unwrap_comparison())
-						.map(|c| diff(&c[0].1, &c[1].1))
+						.map(|c| diff(&c[0].1, &c[i].1))
 						.map(|d| format!("{:.1}%", d * 100.0))
 						.collect();
 					self.add_values(last, &title, pad, &values, lines);
