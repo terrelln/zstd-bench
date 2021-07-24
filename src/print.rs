@@ -465,7 +465,11 @@ fn compare_rows<S: AsRef<str>>(rows: Vec<Row>, keys: &[S], cmp: &Comparison) -> 
 			for r in &cmp_rows {
 				let c = r.get(&cmp.key).unwrap_str();
 				let v = r.get(key);
-				cmp_value.push((c.to_string(), v.clone()));
+				if c == &cmp.baseline {
+					cmp_value.insert(0, (c.to_string(), v.clone()));
+				} else {
+					cmp_value.push((c.to_string(), v.clone()));
+				}
 			}
 			let old = out_row
 				.values
