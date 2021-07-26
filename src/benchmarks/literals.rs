@@ -84,6 +84,8 @@ impl<const MODE: i32> ConfigurableBenchmark for LiteralsBenchmark<MODE> {
 impl<const MODE: i32> Benchmark for LiteralsBenchmark<MODE> {
 	fn initialize_data_set(&mut self, data_set: &DataSet) {
 		println!("Initializing dataset...");
+		self.c_data.clear();
+		self.d_literals.clear();
 		for datum in data_set.data() {
 			let mut cdata = Vec::new();
 			cdata.resize(zstd::compress_bound(datum.len()), 0);

@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-let BUILD_VERSION: u64 = 0;
+static BUILD_VERSION: u64 = 1;
 
 struct Zstd {
 	remote: String,
@@ -186,6 +186,10 @@ impl Zstd {
 	fn copy_lib(&self) -> PathBuf {
 		let lib_dir = self.repo_dir.join("lib");
 		let out_lib_dir = self.out_dir.join("lib");
+		if out_lib_dir.exists() {
+			fs::remove_dir_all(&out_lib_dir).unwrap();
+		}
+		fs::create_dir_all(&self.out_dir).unwrap();
 		let success = Command::new("cp")
 			.arg("-rf")
 			.arg(&lib_dir)
