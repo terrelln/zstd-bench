@@ -10,6 +10,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+let BUILD_VERSION: u64 = 0;
+
 struct Zstd {
 	remote: String,
 	commit: String,
@@ -176,9 +178,23 @@ impl Zstd {
 			let path = entry.path();
 			let ext = path.extension().unwrap();
 			if ext == "c" || ext == "S" {
-				build.file(path);
+				build.file(&path);
 			}
 		}
+	}
+
+	fn copy_lib(&self) -> PathBuf {
+		let lib_dir = self.repo_dir.join("lib");
+		let out_lib_dir = self.out_dir.join("lib");
+		let success = Command::new("cp")
+			.arg("-rf")
+			.arg(&lib_dir)
+			.arg(&out_lib_dir)
+			.status()
+			.unwrap()
+			.success();
+		assert_eq!(success, true);
+		out_lib_dir
 	}
 
 	fn compile(&self) {
@@ -192,8 +208,7 @@ impl Zstd {
 			}
 		}
 
-		let mut lib_dir = self.repo_dir.clone();
-		lib_dir.push("lib");
+		let lib_dir = self.copy_lib();
 		let mut build = cc::Build::new();
 		self.add_files(&mut build, &lib_dir, "common");
 		self.add_files(&mut build, &lib_dir, "compress");
@@ -221,6 +236,7 @@ struct Config {
 	cc_version: String,
 	cflags: String,
 	zstd_hash: u64,
+	build_version: u64,
 }
 
 fn get_version(cc: &str) -> String {
@@ -258,6 +274,7 @@ impl Config {
 			cc_version,
 			cflags,
 			zstd_hash,
+			build_version: BUILD_VERSION,
 		}
 	}
 
