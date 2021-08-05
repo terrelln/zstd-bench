@@ -236,8 +236,8 @@ pub struct BenchmarkResult {
 	pub iters_per_run: u64,
 	pub runs: u64,
 
-	pub uncompressed_bytes: u64,
-	pub compressed_bytes: u64,
+	pub uncompressed_bytes: Option<u64>,
+	pub compressed_bytes: Option<u64>,
 	pub duration_ns: Statistic,
 }
 
@@ -294,11 +294,11 @@ fn compute_iters_and_runs(config: &Config, benchmark: &mut dyn Benchmark, data_s
 	}
 }
 
-fn assert_opt_eq(prev: &Option<u64>, curr: u64) -> Option<u64> {
+fn assert_opt_eq(prev: &Option<u64>, curr: Option<u64>) -> Option<u64> {
 	if let Some(prev) = prev {
-		assert_eq!(*prev, curr);
+		assert_eq!(*prev, curr.unwrap());
 	}
-	Some(curr)
+	curr
 }
 
 pub fn run_benchmark(
@@ -328,13 +328,13 @@ pub fn run_benchmark(
 	for _ in 0..runs {
 		let metrics = benchmark.run_data_set(&data_set, result.iters_per_run);
 		uncompressed_bytes =
-			assert_opt_eq(&uncompressed_bytes, metrics.uncompressed_size.unwrap());
+			assert_opt_eq(&uncompressed_bytes, metrics.uncompressed_size);
 		compressed_bytes =
-			assert_opt_eq(&compressed_bytes, metrics.compressed_size.unwrap());
+			assert_opt_eq(&compressed_bytes, metrics.compressed_size);
 		duration_ns.push(metrics.duration.unwrap().as_nanos() as u64);
 	}
-	result.uncompressed_bytes = uncompressed_bytes.unwrap();
-	result.compressed_bytes = compressed_bytes.unwrap();
+	result.uncompressed_bytes = uncompressed_bytes;
+	result.compressed_bytes = compressed_bytes;
 	result.duration_ns = Statistic::compute(&duration_ns);
 
 	benchmark.finalize_data_set(data_set);

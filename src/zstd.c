@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "common/cpu.h"
+#include "common/huf.h"
 #include "common/zstd_internal.h"
 #include "compress/zstd_compress_internal.h"
 #include "compress/zstd_compress_literals.h"
@@ -253,7 +254,7 @@ typedef struct {
   ZSTD_hufCTables_t prev;
   ZSTD_hufCTables_t next;
   uint8_t dst[128 * 1024];
-  uint32_t workspace[HUF_WORKSPACE_SIZE_U32];
+  uint64_t workspace[2048];
   int bmi2;
 } ZSTD_CompressLiteralsBlockContext;
 
@@ -275,7 +276,7 @@ size_t ZSTD_compressLiteralsBlock(void *opaque, void const *src, size_t srcSize,
   ZSTD_CompressLiteralsBlockContext *ctx =
       (ZSTD_CompressLiteralsBlockContext *)opaque;
   RETURN_ERROR_IF(srcSize > sizeof(ctx->dst), srcSize_wrong, "too many lits");
-#if ZSTD_VERSION_NUMBER > 10500
+#if ZSTD_VERSION_NUMBER >= 10500
   return ZSTD_compressLiterals(
       &ctx->prev, &ctx->next, ZSTD_fast, /* disableLiteralCompression */ 0,
       ctx->dst, sizeof(ctx->dst), src, srcSize, ctx->workspace,
@@ -287,4 +288,25 @@ size_t ZSTD_compressLiteralsBlock(void *opaque, void const *src, size_t srcSize,
                                sizeof(ctx->dst), src, srcSize, ctx->workspace,
                                sizeof(ctx->workspace), ctx->bmi2);
 #endif
+}
+
+size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx, const void* src, size_t srcSize);
+
+size_t ZSTD_decompressLiteralsBlock(ZSTD_DCtx* dctx, const void* src, size_t srcSize) {
+  size_t const csize = ZSTD_decodeLiteralsBlock(dctx, src, srcSize);
+  FORWARD_IF_ERROR(csize, "decode literals block failed");
+  return dctx->litSize;
+}
+
+size_t HUF_sizeofCTableU64(size_t maxSymbol) {
+  return HUF_CTABLE_SIZE_U32(maxSymbol) / 2 + 1;
+}
+size_t HUF_sizeofDTableU32(size_t maxTableLog) {
+  return (HUF_DTABLE_SIZE(maxTableLog) * (sizeof(HUF_DTable))) / sizeof(U32) + 1;
+}
+size_t HUF_sizeofWorkspaceU32() {
+  return HUF_WORKSPACE_SIZE_U32;
+}
+int ZSTD_hasBMI2() {
+  return ZSTD_cpuid_bmi2(ZSTD_cpuid());
 }

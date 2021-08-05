@@ -518,10 +518,14 @@ impl From<BenchmarkResult> for Row {
 		values.insert("duration_ns_median", result.duration_ns.median.into());
 		values.insert("duration_ns_stddev", result.duration_ns.std_dev.into());
 
-		let uncompressed_bytes = result.uncompressed_bytes;
-		let speed_mbps = |duration| 1000. * (uncompressed_bytes as f64) / (duration as f64);
+		let uncompressed_bytes = result.uncompressed_bytes.clone();
+		let compressed_bytes = result.compressed_bytes.clone();
+		let speed_mbps = |duration| uncompressed_bytes.clone().map(|u| 1000. * (u as f64) / (duration as f64));
 
-		let ratio = (uncompressed_bytes as f64) / (result.compressed_bytes as f64);
+		let ratio = match (uncompressed_bytes, compressed_bytes) {
+			(Some(u), Some(c)) => Some((u as f64) / (c as f64)),
+			_ => None,
+		};
 
 		values.insert("ratio", ratio.into());
 		values.insert("speed_mbps", speed_mbps(result.duration_ns.mean).into());
@@ -537,11 +541,17 @@ impl From<BenchmarkResult> for Row {
 			speed_mbps(result.duration_ns.std_dev).into(),
 		);
 
+		values.insert(
+			"ns_per_iter",
+			(result.duration_ns.mean / result.iters_per_run).into()
+		);
+
 		let mut titles = HashMap::new();
 		titles.insert("speed_mbps", "Speed MB/s");
 		titles.insert("cc", "Compiler");
 		titles.insert("cc_version", "Compiler Version");
 		titles.insert("cflags", "Compiler Flags");
+		titles.insert("ns_per_iter", "ns / iter");
 
 		let values = values
 			.into_iter()

@@ -10,8 +10,11 @@ enum LiteralsMode {
 
 pub struct LiteralsBenchmark<const MODE: i32> {
 	compressor: zstd::LiteralsBlockCompressor,
+	decompressor: zstd::LiteralsBlockDecompressor,
 	c_data: Vec<Vec<u8>>,
+	c_literals: Vec<Vec<u8>>,
 	d_literals: Vec<Vec<u8>>,
+	quantization: Option<i32>,
 	level: i32,
 }
 
@@ -27,12 +30,15 @@ impl<const MODE: i32> LiteralsBenchmark<MODE> {
 		}
 	}
 
-	fn new(level: i32) -> Self {
+	fn new(level: i32, quantization: Option<i32>) -> Self {
 		LiteralsBenchmark {
 			compressor: zstd::LiteralsBlockCompressor::new(),
+			decompressor: zstd::LiteralsBlockDecompressor::new(),
 			c_data: Vec::new(),
+			c_literals: Vec::new(),
 			d_literals: Vec::new(),
 			level,
+			quantization,
 		}
 	}
 
@@ -50,12 +56,19 @@ impl<const MODE: i32> LiteralsBenchmark<MODE> {
 			LiteralsMode::Decompress => {
 				let mut d_size = 0;
 				let mut c_size = 0;
-				for c_data in &self.c_data {
-					zstd::for_each_literals_block(&c_data, |c_lits, d_lits, _lits_type| {
-						d_size += d_lits.len();
+				if self.quantization.is_none() {
+					for c_data in &self.c_data {
+						zstd::for_each_literals_block(&c_data, |c_lits, d_lits, _lits_type| {
+							d_size += d_lits.len();
+							c_size += c_lits.len();
+							zstd::IterationCommand::Continue
+						});
+					}
+				} else {
+					for c_lits in &self.c_literals {
 						c_size += c_lits.len();
-						zstd::IterationCommand::Continue
-					});
+						d_size += self.decompressor.decompress(&c_lits);
+					}
 				}
 				(d_size, c_size)
 			}
@@ -76,7 +89,10 @@ impl<const MODE: i32> ConfigurableBenchmark for LiteralsBenchmark<MODE> {
 			.get_parameter("ZSTD_c_compressionLevel")
 			.map(|v| v.unwrap_integer())
 			.unwrap_or(0);
-		let bm = LiteralsBenchmark::<MODE>::new(level as i32);
+		let quantization = config
+			.get_parameter("Q")
+			.map(|v| v.unwrap_integer() as i32);
+		let bm = LiteralsBenchmark::<MODE>::new(level as i32, quantization);
 		Box::new(bm)
 	}
 }
@@ -85,6 +101,7 @@ impl<const MODE: i32> Benchmark for LiteralsBenchmark<MODE> {
 	fn initialize_data_set(&mut self, data_set: &DataSet) {
 		println!("Initializing dataset...");
 		self.c_data.clear();
+		self.c_literals.clear();
 		self.d_literals.clear();
 		for datum in data_set.data() {
 			let mut cdata = Vec::new();
@@ -98,13 +115,20 @@ impl<const MODE: i32> Benchmark for LiteralsBenchmark<MODE> {
 			});
 			assert_eq!(zstd::is_error(nblocks), false);
 
-			let nblocks = zstd::for_each_literals_block(&cdata, |_c_lits, d_lits, _lits_type| {
+			let nblocks = zstd::for_each_literals_block(&cdata, |c_lits, d_lits, lits_type| {
+				let q = if c_lits.len() >= d_lits.len() { 15 } else { (c_lits.len() * 16 / d_lits.len()) as i32 };
+				if lits_type == zstd::LiteralsBlockType::Compressed && self.quantization == Some(q) {
+					self.c_literals.push(c_lits.to_owned());
+				}
 				self.d_literals.push(d_lits.to_owned());
 				zstd::IterationCommand::Continue
 			});
 			assert_eq!(zstd::is_error(nblocks), false);
 
 			self.c_data.push(cdata);
+		}
+		if self.quantization.is_some() && self.c_literals.is_empty() {
+			panic!("No data with the given quantization!");
 		}
 		println!("initialized");
 	}

@@ -1,0 +1,235 @@
+# Optional
+# This gets prefixed to every benchmark command
+# This example runs the benchmark on a protected CPU
+command_prefix = ["sudo", "cset", "shield", "--exec", "--"]
+
+# The upstream zstd repo you want to benchmark
+# This can either be a local or remote repository
+repo = "/home/nick/repos/zstd"
+
+# The commits you want to benchmark.
+# These can be branches or tags or commits.
+# TODO: This is referred to as the revision. I should
+#       rename this to revision.
+commits = [
+	"huf-asm",
+#	"huf-asm-4x1",
+#	"huf-asm-4x2",
+#	"dev",
+#	"debug",
+#	"dev-4x1",
+#	"dev-4x2",
+]
+
+# These values are optional and configure how long to benchmark for
+# These are the default values
+
+# Minimum total seconds to benchmark for
+min_secs = 3
+# Minimum number of runs
+min_runs = 3
+# Each run should be at least this long
+min_ms_per_run = 100
+# Minimum number of iterations each run
+min_iters_per_run = 1
+
+# These are the datasets we want to benchmark with
+[datasets]
+	# silesia: Benchmark on each file of silesia individually
+	[datasets.silesia]
+		files = ["/home/nick/datasets/silesia/*"]
+
+	# Cut each file of silesia into 1K chunks and benchmark on each chunk
+	[datasets.silesia_1k]
+		files = ["/home/nick/datasets/silesia/*"]
+		# Cut mode
+		mode = { "cut" = 1024 }
+
+	[datasets.silesia_4k]
+		files = ["/home/nick/datasets/silesia/*"]
+		mode = { "cut" = 4096 }
+
+	[datasets.silesia_16k]
+		files = ["/home/nick/datasets/silesia/*"]
+		mode = { "cut" = 16384 }
+
+	[datasets.enwik7]
+		files = ["/home/nick/datasets/enwik7"]
+
+	[datasets.Q-sweep]
+		files = ["/home/nick/datasets/Q-sweep"]
+		mode = { "cut" = 131072 }
+
+[benchmarks]
+	[benchmarks.huf_build_dtable_x1]
+		[benchmarks.huf_build_dtable_x1.Q2]
+			datasets = ["Q-sweep"]
+			Q = 2
+		[benchmarks.huf_build_dtable_x1.Q3]
+			datasets = ["Q-sweep"]
+			Q = 3
+		[benchmarks.huf_build_dtable_x1.Q4]
+			datasets = ["Q-sweep"]
+			Q = 4
+		[benchmarks.huf_build_dtable_x1.Q5]
+			datasets = ["Q-sweep"]
+			Q = 5
+		[benchmarks.huf_build_dtable_x1.Q6]
+			datasets = ["Q-sweep"]
+			Q = 6
+		[benchmarks.huf_build_dtable_x1.Q7]
+			datasets = ["Q-sweep"]
+			Q = 7
+		[benchmarks.huf_build_dtable_x1.Q8]
+			datasets = ["Q-sweep"]
+			Q = 8
+		[benchmarks.huf_build_dtable_x1.Q9]
+			datasets = ["Q-sweep"]
+			Q = 9
+		[benchmarks.huf_build_dtable_x1.Q10]
+			datasets = ["Q-sweep"]
+			Q = 10
+		[benchmarks.huf_build_dtable_x1.Q11]
+			datasets = ["Q-sweep"]
+			Q = 11
+		[benchmarks.huf_build_dtable_x1.Q12]
+			datasets = ["Q-sweep"]
+			Q = 12
+		[benchmarks.huf_build_dtable_x1.Q13]
+			datasets = ["Q-sweep"]
+			Q = 13
+		[benchmarks.huf_build_dtable_x1.Q14]
+			datasets = ["Q-sweep"]
+			Q = 14
+		[benchmarks.huf_build_dtable_x1.Q15]
+			datasets = ["Q-sweep"]
+			Q = 15
+	[benchmarks.huf_build_dtable_x2]
+		[benchmarks.huf_build_dtable_x2.Q2]
+			datasets = ["Q-sweep"]
+			Q = 2
+		[benchmarks.huf_build_dtable_x2.Q3]
+			datasets = ["Q-sweep"]
+			Q = 3
+		[benchmarks.huf_build_dtable_x2.Q4]
+			datasets = ["Q-sweep"]
+			Q = 4
+		[benchmarks.huf_build_dtable_x2.Q5]
+			datasets = ["Q-sweep"]
+			Q = 5
+		[benchmarks.huf_build_dtable_x2.Q6]
+			datasets = ["Q-sweep"]
+			Q = 6
+		[benchmarks.huf_build_dtable_x2.Q7]
+			datasets = ["Q-sweep"]
+			Q = 7
+		[benchmarks.huf_build_dtable_x2.Q8]
+			datasets = ["Q-sweep"]
+			Q = 8
+		[benchmarks.huf_build_dtable_x2.Q9]
+			datasets = ["Q-sweep"]
+			Q = 9
+		[benchmarks.huf_build_dtable_x2.Q10]
+			datasets = ["Q-sweep"]
+			Q = 10
+		[benchmarks.huf_build_dtable_x2.Q11]
+			datasets = ["Q-sweep"]
+			Q = 11
+		[benchmarks.huf_build_dtable_x2.Q12]
+			datasets = ["Q-sweep"]
+			Q = 12
+		[benchmarks.huf_build_dtable_x2.Q13]
+			datasets = ["Q-sweep"]
+			Q = 13
+		[benchmarks.huf_build_dtable_x2.Q14]
+			datasets = ["Q-sweep"]
+			Q = 14
+		[benchmarks.huf_build_dtable_x2.Q15]
+			datasets = ["Q-sweep"]
+			Q = 15
+	[benchmarks.huf_decompress_4x1]
+		[benchmarks.huf_decompress_4x1.Q2]
+			datasets = ["Q-sweep"]
+			Q = 2
+		[benchmarks.huf_decompress_4x1.Q3]
+			datasets = ["Q-sweep"]
+			Q = 3
+		[benchmarks.huf_decompress_4x1.Q4]
+			datasets = ["Q-sweep"]
+			Q = 4
+		[benchmarks.huf_decompress_4x1.Q5]
+			datasets = ["Q-sweep"]
+			Q = 5
+		[benchmarks.huf_decompress_4x1.Q6]
+			datasets = ["Q-sweep"]
+			Q = 6
+		[benchmarks.huf_decompress_4x1.Q7]
+			datasets = ["Q-sweep"]
+			Q = 7
+		[benchmarks.huf_decompress_4x1.Q8]
+			datasets = ["Q-sweep"]
+			Q = 8
+		[benchmarks.huf_decompress_4x1.Q9]
+			datasets = ["Q-sweep"]
+			Q = 9
+		[benchmarks.huf_decompress_4x1.Q10]
+			datasets = ["Q-sweep"]
+			Q = 10
+		[benchmarks.huf_decompress_4x1.Q11]
+			datasets = ["Q-sweep"]
+			Q = 11
+		[benchmarks.huf_decompress_4x1.Q12]
+			datasets = ["Q-sweep"]
+			Q = 12
+		[benchmarks.huf_decompress_4x1.Q13]
+			datasets = ["Q-sweep"]
+			Q = 13
+		[benchmarks.huf_decompress_4x1.Q14]
+			datasets = ["Q-sweep"]
+			Q = 14
+		[benchmarks.huf_decompress_4x1.Q15]
+			datasets = ["Q-sweep"]
+			Q = 15
+	[benchmarks.huf_decompress_4x2]
+		[benchmarks.huf_decompress_4x2.Q2]
+			datasets = ["Q-sweep"]
+			Q = 2
+		[benchmarks.huf_decompress_4x2.Q3]
+			datasets = ["Q-sweep"]
+			Q = 3
+		[benchmarks.huf_decompress_4x2.Q4]
+			datasets = ["Q-sweep"]
+			Q = 4
+		[benchmarks.huf_decompress_4x2.Q5]
+			datasets = ["Q-sweep"]
+			Q = 5
+		[benchmarks.huf_decompress_4x2.Q6]
+			datasets = ["Q-sweep"]
+			Q = 6
+		[benchmarks.huf_decompress_4x2.Q7]
+			datasets = ["Q-sweep"]
+			Q = 7
+		[benchmarks.huf_decompress_4x2.Q8]
+			datasets = ["Q-sweep"]
+			Q = 8
+		[benchmarks.huf_decompress_4x2.Q9]
+			datasets = ["Q-sweep"]
+			Q = 9
+		[benchmarks.huf_decompress_4x2.Q10]
+			datasets = ["Q-sweep"]
+			Q = 10
+		[benchmarks.huf_decompress_4x2.Q11]
+			datasets = ["Q-sweep"]
+			Q = 11
+		[benchmarks.huf_decompress_4x2.Q12]
+			datasets = ["Q-sweep"]
+			Q = 12
+		[benchmarks.huf_decompress_4x2.Q13]
+			datasets = ["Q-sweep"]
+			Q = 13
+		[benchmarks.huf_decompress_4x2.Q14]
+			datasets = ["Q-sweep"]
+			Q = 14
+		[benchmarks.huf_decompress_4x2.Q15]
+			datasets = ["Q-sweep"]
+			Q = 15
